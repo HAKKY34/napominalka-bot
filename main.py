@@ -205,7 +205,7 @@ async def list_reminders(callback: types.CallbackQuery):
         await callback.answer()
         return
 
-    now = datetime.now()
+    now = datetime.now() + timedelta(hours=3)  # переводим серверное время в московское для сравнения
     text = "📋 Твои напоминания:\n\n"
     for rid, rem in reminders.items():
         status = "🔴" if rem["time"] < now else "🟢"
@@ -253,23 +253,30 @@ async def back_to_menu(callback: types.CallbackQuery):
     await show_main_menu(callback.message)
     await callback.answer()
 
-# === ПЛАНИРОВЩИК ===
+# === ИСПРАВЛЕННЫЙ ПЛАНИРОВЩИК ===
 async def reminder_scheduler():
     print("✅ Планировщик запущен!")
     while True:
-        now = datetime.now()
+        # Берём текущее время сервера (UTC) и делаем из него московское
+        now_utc = datetime.now()
+        now_msk = now_utc + timedelta(hours=3)  # переводим в Москву
+        
         to_remove = []
         for uid, reminders in user_reminders.items():
             for rid, rem in list(reminders.items()):
-                if now >= rem["time"]:  # время уже московское, сравниваем напрямую
+                # Сравниваем московское время с московским
+                if now_msk >= rem["time"]:
                     try:
                         await bot.send_message(rem["chat_id"], f"⏰ НАПОМИНАНИЕ!\n\n{rem['text']}")
-                        print(f"⏰ Отправлено {rid}")
-                    except:
-                        pass
+                        print(f"⏰ Отправлено {rid} в {now_msk.strftime('%H:%M')} (по Москве)")
+                    except Exception as e:
+                        print(f"❌ Ошибка отправки {rid}: {e}")
                     to_remove.append((uid, rid))
+        
         for uid, rid in to_remove:
-            user_reminders[uid].pop(rid, None)
+            if uid in user_reminders and rid in user_reminders[uid]:
+                user_reminders[uid].pop(rid, None)
+        
         await asyncio.sleep(30)
 
 # === HEALTH CHECK ===
